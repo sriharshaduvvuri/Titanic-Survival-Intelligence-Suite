@@ -13,7 +13,7 @@ import {
 } from 'recharts';
 import { GlassCard } from '../components/GlassCard';
 import { useToast } from '../components/NotificationToast';
-import { analyticsApi } from '../utils/api';
+import { analyticsApi } from '../api';
 
 interface ExplainableAIProps {
   activePrediction: any;

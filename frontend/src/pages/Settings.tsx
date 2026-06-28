@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { User, Shield, Moon, Sun, Languages, BrainCircuit, Save, Lock } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { useToast } from '../components/NotificationToast';
-import { authApi } from '../utils/api';
+import { authApi } from '../api';
 
 interface SettingsProps {
   user: any;

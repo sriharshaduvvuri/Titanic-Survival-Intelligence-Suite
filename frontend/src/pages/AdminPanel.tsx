@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import { GlassCard } from '../components/GlassCard';
 import { useToast } from '../components/NotificationToast';
-import { adminApi, apiClient } from '../utils/api';
+import { adminApi, apiClient } from '../api';
 
 export const AdminPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);

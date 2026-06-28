@@ -12,7 +12,7 @@ import {
 } from 'recharts';
 import { GlassCard } from '../components/GlassCard';
 import { useToast } from '../components/NotificationToast';
-import { analyticsApi, predictionsApi } from '../utils/api';
+import { analyticsApi, predictionsApi } from '../api';
 
 export const AnalyticsLab: React.FC = () => {
   const [loading, setLoading] = useState(true);

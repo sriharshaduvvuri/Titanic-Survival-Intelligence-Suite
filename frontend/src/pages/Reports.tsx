@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { FileText, Download, Copy, Check, Info, FileSpreadsheet, Clipboard } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { useToast } from '../components/NotificationToast';
-import { apiClient } from '../utils/api';
+import { apiClient } from '../api';
 
 export const Reports: React.FC = () => {
   const [downloadingPdf, setDownloadingPdf] = useState(false);

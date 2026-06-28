@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { UploadCloud, FileText, Download, CheckCircle, AlertOctagon, HelpCircle } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { useToast } from '../components/NotificationToast';
-import { predictionsApi } from '../utils/api';
+import { predictionsApi } from '../api';
 
 export const BatchPrediction: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);

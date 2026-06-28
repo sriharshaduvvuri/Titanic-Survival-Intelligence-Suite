@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { LandingPage } from './pages/LandingPage';
-import { Login } from './pages/Login';
-import { Dashboard } from './pages/Dashboard';
+import { Login } from './auth/Login';
+import { Dashboard } from './dashboard/Dashboard';
 import { PredictionCenter } from './pages/PredictionCenter';
 import { ExplainableAI } from './pages/ExplainableAI';
 import { BatchPrediction } from './pages/BatchPrediction';
@@ -11,7 +11,8 @@ import { Reports } from './pages/Reports';
 import { AdminPanel } from './pages/AdminPanel';
 import { Settings } from './pages/Settings';
 import { ToastProvider, useToast } from './components/NotificationToast';
-import { authApi } from './utils/api';
+import { ProtectedRoute } from './auth/ProtectedRoute';
+import { authApi } from './api';
 
 const getExpiryFromToken = (token: string | null): number | null => {
   if (!token) return null;
@@ -67,7 +68,7 @@ const AppContent: React.FC = () => {
     return () => clearInterval(timer);
   }, [token]);
 
-  // Load user & token from storage on boot
+  // Load user & token from storage on boot (Auto-login persistence)
   useEffect(() => {
     const savedToken = localStorage.getItem('titanic_auth_token');
     const savedUser = localStorage.getItem('titanic_user');
@@ -107,7 +108,7 @@ const AppContent: React.FC = () => {
     }
   };
 
-  // Auth Expired Listener
+  // Auth Expired Listener from API client interceptor
   useEffect(() => {
     const handleAuthExpired = () => {
       setUser(null);
@@ -155,9 +156,9 @@ const AppContent: React.FC = () => {
       setToken(res.access_token);
       setUser(res.user);
       setShowWarningModal(false);
-      showToast('Your session has been successfully extended.', 'success');
+      showToast('Your diagnostic session has been extended.', 'success');
     } catch (err) {
-      showToast('Failed to extend session. Please login again.', 'error');
+      showToast('Failed to extend session. Redirecting to login.', 'error');
       handleLogout();
     }
   };
@@ -178,34 +179,41 @@ const AppContent: React.FC = () => {
     
     // Protected pages layout template
     return (
-      <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
-        <Sidebar 
-          currentTab={currentTab} 
-          setCurrentTab={setCurrentTab} 
-          user={user} 
-          onLogout={handleLogout}
-          theme={theme}
-          toggleTheme={toggleTheme}
-        />
-        
-        <div className="flex-grow overflow-y-auto h-screen scrollbar-thin">
-          {currentTab === 'dashboard' && <Dashboard />}
-          {currentTab === 'prediction' && <PredictionCenter onNavigateToEAI={handleNavigateToEAI} />}
-          {currentTab === 'eai' && <ExplainableAI activePrediction={activeXaiData} />}
-          {currentTab === 'batch' && <BatchPrediction />}
-          {currentTab === 'analytics' && <AnalyticsLab />}
-          {currentTab === 'reports' && <Reports />}
-          {currentTab === 'admin' && <AdminPanel />}
-          {currentTab === 'settings' && (
-            <Settings 
-              user={user} 
-              onUpdateUser={setUser} 
-              theme={theme} 
-              toggleTheme={toggleTheme} 
-            />
-          )}
+      <ProtectedRoute user={user} setCurrentTab={setCurrentTab} showToast={showToast}>
+        <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+          <Sidebar 
+            currentTab={currentTab} 
+            setCurrentTab={setCurrentTab} 
+            user={user} 
+            onLogout={handleLogout}
+            theme={theme}
+            toggleTheme={toggleTheme}
+          />
+          
+          <div className="flex-grow overflow-y-auto h-screen scrollbar-thin">
+            {currentTab === 'dashboard' && (
+              <Dashboard 
+                onNavigateToEAI={handleNavigateToEAI} 
+                setCurrentTab={setCurrentTab} 
+              />
+            )}
+            {currentTab === 'prediction' && <PredictionCenter onNavigateToEAI={handleNavigateToEAI} />}
+            {currentTab === 'eai' && <ExplainableAI activePrediction={activeXaiData} />}
+            {currentTab === 'batch' && <BatchPrediction />}
+            {currentTab === 'analytics' && <AnalyticsLab />}
+            {currentTab === 'reports' && <Reports />}
+            {currentTab === 'admin' && <AdminPanel />}
+            {currentTab === 'settings' && (
+              <Settings 
+                user={user} 
+                onUpdateUser={setUser} 
+                theme={theme} 
+                toggleTheme={toggleTheme} 
+              />
+            )}
+          </div>
         </div>
-      </div>
+      </ProtectedRoute>
     );
   };
 
@@ -215,7 +223,7 @@ const AppContent: React.FC = () => {
       
       {showWarningModal && timeRemaining !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="max-w-md w-full rounded-2xl border dark:border-white/10 border-slate-200 bg-white dark:bg-slate-900 p-6 shadow-2xl">
+          <div className="max-w-md w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-6 shadow-2xl">
             <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
               🔒 Session Expiring
             </h3>
@@ -229,7 +237,7 @@ const AppContent: React.FC = () => {
             <div className="flex gap-3 mt-6 justify-end">
               <button
                 onClick={handleLogout}
-                className="px-4 py-2.5 rounded-xl border dark:border-white/5 border-slate-200 text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
+                className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/5 text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
               >
                 Log Out
               </button>
