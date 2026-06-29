@@ -14,7 +14,12 @@ import {
   Sun, 
   Moon,
   Ship,
-  Home
+  Home,
+  Database,
+  ArrowLeftRight,
+  Info,
+  MessageSquare,
+  BarChart3
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -48,9 +53,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'eai', label: 'Explainable AI', icon: <Layers className="w-5 h-5" />, protected: true },
     { id: 'batch', label: 'Batch Prediction', icon: <Ship className="w-5 h-5" />, protected: true },
     { id: 'analytics', label: 'Analytics Lab', icon: <BarChart4 className="w-5 h-5" />, protected: true },
+    { id: 'dataset', label: 'Dataset Explorer', icon: <Database className="w-5 h-5" />, protected: true },
+    { id: 'compare', label: 'Compare Passengers', icon: <ArrowLeftRight className="w-5 h-5" />, protected: true },
+    { id: 'metrics', label: 'Model Metrics', icon: <BarChart3 className="w-5 h-5" />, protected: true },
     { id: 'reports', label: 'Reports', icon: <FileText className="w-5 h-5" />, protected: true },
+    { id: 'contact', label: 'Contact & Feedback', icon: <MessageSquare className="w-5 h-5" /> },
     { id: 'admin', label: 'Admin Panel', icon: <ShieldCheck className="w-5 h-5" />, protected: true, adminOnly: true },
     { id: 'settings', label: 'Settings', icon: <Settings className="w-5 h-5" />, protected: true },
+    { id: 'about', label: 'About Project', icon: <Info className="w-5 h-5" /> },
   ];
 
   const filteredItems = navItems.filter(item => {

@@ -169,7 +169,7 @@ export const Login: React.FC<LoginProps> = ({ onAuthSuccess, onBack }) => {
                   <input
                     type="text"
                     required
-                    placeholder=""
+                    placeholder="Your Name"
                     value={fullName}
                     onChange={handleNameChange}
                     onBlur={() => validateName(fullName)}
@@ -195,7 +195,7 @@ export const Login: React.FC<LoginProps> = ({ onAuthSuccess, onBack }) => {
                 <input
                   type="email"
                   required
-                  placeholder=""
+                  placeholder="Your Email"
                   value={email}
                   onChange={handleEmailChange}
                   onBlur={() => validateEmail(email)}

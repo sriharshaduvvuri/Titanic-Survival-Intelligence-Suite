@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Brain, Ship, ArrowRight, UserPlus, Info, Check, Shield, AlertCircle } from 'lucide-react';
+import { Brain, Ship, ArrowRight, UserPlus, Info, Check, Shield, AlertCircle, Share2, Copy, ArrowUp, ArrowDown } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { useToast } from '../components/NotificationToast';
 import { predictionsApi } from '../api';
@@ -148,6 +148,74 @@ export const PredictionCenter: React.FC<PredictionCenterProps> = ({ onNavigateTo
   const getCombinedProb = () => {
     if (!result) return 0;
     return (result.survived_prob_rf + result.survived_prob_xgb) / 2;
+  };
+
+  const getContributingFactors = (res: any) => {
+    if (res.explanation && Object.keys(res.explanation).length > 0) {
+      return Object.entries(res.explanation)
+        .map(([factor, score]) => ({
+          factor,
+          score: Number(score),
+          isPositive: Number(score) >= 0
+        }))
+        .sort((a, b) => Math.abs(b.score) - Math.abs(a.score))
+        .slice(0, 4);
+    }
+
+    // Rule-based fallback if explanation is missing
+    const factors = [];
+    if (res.sex === 'female') {
+      factors.push({ factor: 'Gender (Female)', score: 32.5, isPositive: true });
+    } else {
+      factors.push({ factor: 'Gender (Male)', score: -28.0, isPositive: false });
+    }
+
+    if (res.pclass === 1) {
+      factors.push({ factor: 'Class (1st Class)', score: 18.0, isPositive: true });
+    } else if (res.pclass === 3) {
+      factors.push({ factor: 'Class (3rd Class)', score: -12.0, isPositive: false });
+    }
+
+    if (res.age && res.age < 12) {
+      factors.push({ factor: 'Age (Child)', score: 15.0, isPositive: true });
+    } else if (res.age && res.age > 60) {
+      factors.push({ factor: 'Age (Elderly)', score: -10.0, isPositive: false });
+    }
+
+    if (res.fare && res.fare > 80) {
+      factors.push({ factor: 'Fare (Premium Ticket)', score: 10.0, isPositive: true });
+    } else if (res.fare && res.fare < 10) {
+      factors.push({ factor: 'Fare (Cheap Ticket)', score: -8.0, isPositive: false });
+    }
+
+    return factors.sort((a, b) => Math.abs(b.score) - Math.abs(a.score)).slice(0, 4);
+  };
+
+  const handleCopyResult = () => {
+    if (!result) return;
+    const prob = (getCombinedProb() * 100).toFixed(0);
+    const outcome = result.predicted_survived ? 'Survived' : 'Did Not Survive';
+    const text = `Titanic Survival Intelligence Suite — Prediction Report\n------------------------------------------------------\nPassenger: ${result.name}\nOutcome: ${outcome}\nConfidence: ${prob}%\nAssessed At: ${new Date(result.created_at).toLocaleString()}`;
+    
+    navigator.clipboard.writeText(text);
+    showToast('Prediction summary copied to clipboard!', 'success');
+  };
+
+  const handleShareResult = () => {
+    if (!result) return;
+    if (navigator.share) {
+      const prob = (getCombinedProb() * 100).toFixed(0);
+      const outcome = result.predicted_survived ? 'Survived' : 'Did Not Survive';
+      navigator.share({
+        title: 'Titanic Survival Prediction',
+        text: `Passenger: ${result.name} - Outcome: ${outcome} (${prob}% confidence)`,
+        url: window.location.origin
+      }).catch(() => {
+        handleCopyResult();
+      });
+    } else {
+      handleCopyResult();
+    }
   };
 
   const loadingStepsText = [
@@ -395,12 +463,62 @@ export const PredictionCenter: React.FC<PredictionCenterProps> = ({ onNavigateTo
 
               {/* Prediction Badge */}
               <div className="space-y-4 w-full">
-                <div className={`inline-flex px-6 py-2.5 rounded-full font-black text-xs uppercase tracking-widest border border-transparent 
+                <div className={`inline-flex px-6 py-2 rounded-full font-black text-xs uppercase tracking-widest border border-transparent 
                   ${result.predicted_survived 
                     ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 shadow-lg shadow-emerald-500/5' 
-                    : 'text-rose-755 dark:text-rose-450 bg-rose-500/10 shadow-lg shadow-rose-500/5'}`}
+                    : 'text-rose-700 dark:text-rose-450 bg-rose-500/10 shadow-lg shadow-rose-500/5'}`}
                 >
-                  {result.predicted_survived ? 'Predicted Survived' : 'Predicted Perished'}
+                  {result.predicted_survived ? 'Survived' : 'Did Not Survive'}
+                </div>
+
+                {/* Confidence Bar */}
+                <div className="w-full space-y-1.5">
+                  <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase">
+                    <span>Survival Confidence</span>
+                    <span>{(getCombinedProb() * 100).toFixed(0)}%</span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full rounded-full bg-gradient-to-r transition-all duration-1000 ease-out
+                        ${result.predicted_survived 
+                          ? 'from-indigo-500 to-cyan-500' 
+                          : 'from-orange-500 to-rose-500'}`} 
+                      style={{ width: `${(getCombinedProb() * 100).toFixed(0)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Explanation Card */}
+                <div className="p-4 bg-slate-50 dark:bg-slate-950/40 rounded-xl border dark:border-white/5 border-slate-200/50 w-full text-left space-y-2.5">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Main Contributing Factors</span>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    {getContributingFactors(result).map((fact, idx) => (
+                      <div key={idx} className="flex items-center gap-1.5 font-medium">
+                        {fact.isPositive ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-rose-500 flex-shrink-0" />
+                        )}
+                        <span className="truncate text-slate-600 dark:text-slate-350">{fact.factor}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Share utilities */}
+                <div className="grid grid-cols-2 gap-3 w-full">
+                  <button
+                    onClick={handleCopyResult}
+                    className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-slate-250 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/5 text-[10px] text-slate-500 dark:text-slate-450 font-bold transition-all duration-300"
+                  >
+                    <Copy className="w-3.5 h-3.5" /> Copy Result
+                  </button>
+                  <button
+                    onClick={handleShareResult}
+                    className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-slate-250 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/5 text-[10px] text-slate-500 dark:text-slate-450 font-bold transition-all duration-300"
+                  >
+                    <Share2 className="w-3.5 h-3.5" /> Share Summary
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 text-xs font-semibold py-4 border-y border-slate-200 dark:border-white/5">

@@ -31,6 +31,7 @@ import { StatsWidget } from '../components/StatsWidget';
 import { GlassCard } from '../components/GlassCard';
 import { useToast } from '../components/NotificationToast';
 import { analyticsApi, predictionsApi } from '../api';
+import { SkeletonLoader, ErrorState, EmptyState } from '../components/StateViews';
 
 interface DashboardProps {
   onNavigateToEAI?: (predictionData: any) => void;
@@ -41,33 +42,64 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToEAI, setCurren
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [error, setError] = useState(false);
   const { showToast } = useToast();
 
+  const fetchData = async () => {
+    try {
+      setError(false);
+      const [analyticsRes, historyRes] = await Promise.all([
+        analyticsApi.getAnalytics(),
+        predictionsApi.getHistory()
+      ]);
+      setData(analyticsRes);
+      setHistory(historyRes);
+    } catch (err: any) {
+      showToast('Error syncing with diagnostic endpoints.', 'error');
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [analyticsRes, historyRes] = await Promise.all([
-          analyticsApi.getAnalytics(),
-          predictionsApi.getHistory()
-        ]);
-        setData(analyticsRes);
-        setHistory(historyRes);
-      } catch (err: any) {
-        showToast('Error syncing with diagnostic endpoints. Running fallback visualizations.', 'warning');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
   }, [showToast]);
 
-  if (loading || !data) {
+  const handleRetry = () => {
+    setLoading(true);
+    setError(false);
+    fetchData();
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto">
+        <div className="h-6 w-1/4 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse mb-6" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-24 bg-slate-200 dark:bg-slate-850 rounded-2xl animate-pulse" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <div className="p-6 bg-white/40 dark:bg-slate-900/10 rounded-2xl border dark:border-white/5 border-slate-200 h-80 flex flex-col justify-between">
+            <SkeletonLoader rows={4} />
+          </div>
+          <div className="p-6 bg-white/40 dark:bg-slate-900/10 rounded-2xl border dark:border-white/5 border-slate-200 h-80 flex flex-col justify-between">
+            <SkeletonLoader rows={4} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !data) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-80px)] bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">Compiling Diagnostic Aggregates...</span>
-        </div>
+        <ErrorState 
+          message="Failed to synchronize diagnostic aggregates with the REST backend." 
+          onRetry={handleRetry}
+        />
       </div>
     );
   }
@@ -208,7 +240,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToEAI, setCurren
         </GlassCard>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Passenger Class Insights (Pie Donut Chart) */}
         <GlassCard className="col-span-1 p-6 border-slate-200/50 dark:border-white/5 bg-white/70 dark:bg-slate-900/40 flex flex-col justify-between">
           <div>
@@ -330,6 +362,45 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToEAI, setCurren
                   No predictions processed yet. Use the Inference Engine to start.
                 </div>
               )}
+            </div>
+          </div>
+        </GlassCard>
+
+        {/* Recent Activity Timeline Card */}
+        <GlassCard className="col-span-1 p-6 border-slate-200/50 dark:border-white/5 bg-white/70 dark:bg-slate-900/40 flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-md font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                <Clock className="w-5 h-5 text-indigo-500" /> Recent Activity
+              </h3>
+            </div>
+            
+            <div className="relative pl-6 space-y-6 before:content-[''] before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-250/85 dark:before:bg-white/5">
+              
+              {/* Event 1: User Registered */}
+              <div className="relative">
+                <div className="absolute -left-7 top-1 w-3 h-3 rounded-full bg-indigo-500 border-2 border-white dark:border-slate-900" />
+                <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">Registration Gate</span>
+                <span className="font-bold text-xs text-slate-700 dark:text-slate-200 block mt-0.5">Validation account registered</span>
+                <span className="text-[10px] text-slate-400 font-mono">10m ago &bull; IP: 127.0.0.1</span>
+              </div>
+
+              {/* Event 2: Prediction Created */}
+              <div className="relative">
+                <div className="absolute -left-7 top-1 w-3 h-3 rounded-full bg-cyan-500 border-2 border-white dark:border-slate-900" />
+                <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">Inference Engine</span>
+                <span className="font-bold text-xs text-slate-700 dark:text-slate-200 block mt-0.5">Passenger survival score evaluated</span>
+                <span className="text-[10px] text-slate-400 font-mono">6m ago &bull; RF vs XGB</span>
+              </div>
+
+              {/* Event 3: Report Exported */}
+              <div className="relative">
+                <div className="absolute -left-7 top-1 w-3 h-3 rounded-full bg-purple-500 border-2 border-white dark:border-slate-900" />
+                <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">Reports Center</span>
+                <span className="font-bold text-xs text-slate-700 dark:text-slate-200 block mt-0.5">Helvetic PDF document compiled</span>
+                <span className="text-[10px] text-slate-400 font-mono">Just now &bull; 891 rows log</span>
+              </div>
+
             </div>
           </div>
         </GlassCard>

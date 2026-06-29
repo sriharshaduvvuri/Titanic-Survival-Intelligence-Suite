@@ -13,6 +13,24 @@ import { Settings } from './pages/Settings';
 import { ToastProvider, useToast } from './components/NotificationToast';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import { authApi } from './api';
+import { AboutProject } from './pages/AboutProject';
+import { DatasetExplorer } from './pages/DatasetExplorer';
+import { ComparePassengers } from './pages/ComparePassengers';
+import { ModelMetrics } from './pages/ModelMetrics';
+import { ContactFeedback } from './pages/ContactFeedback';
+
+const getInitialTab = (): string => {
+  const path = window.location.pathname.replace(/^\//, '');
+  const validTabs = [
+    'landing', 'login', 'about', 'dashboard', 'prediction', 'eai', 
+    'batch', 'analytics', 'dataset', 'compare', 'metrics', 'reports', 
+    'contact', 'admin', 'settings'
+  ];
+  if (validTabs.includes(path)) {
+    return path;
+  }
+  return 'landing';
+};
 
 const getExpiryFromToken = (token: string | null): number | null => {
   if (!token) return null;
@@ -27,7 +45,7 @@ const getExpiryFromToken = (token: string | null): number | null => {
 };
 
 const AppContent: React.FC = () => {
-  const [currentTab, setCurrentTab] = useState<string>('landing');
+  const [currentTab, setCurrentTab] = useState<string>(getInitialTab());
   const [user, setUser] = useState<any>(null);
   const [token, setToken] = useState<string | null>(null);
   const [theme, setTheme] = useState<string>('dark');
@@ -76,8 +94,39 @@ const AppContent: React.FC = () => {
     if (savedToken && savedUser) {
       setToken(savedToken);
       setUser(JSON.parse(savedUser));
-      setCurrentTab('dashboard');
+      // Only switch to dashboard on login if path was landing or login
+      const path = window.location.pathname.replace(/^\//, '');
+      if (!path || path === 'landing' || path === 'login') {
+        setCurrentTab('dashboard');
+      }
     }
+  }, []);
+
+  // Synchronize browser history and pathnames
+  useEffect(() => {
+    const path = `/${currentTab === 'landing' ? '' : currentTab}`;
+    if (window.location.pathname !== path) {
+      window.history.pushState(null, '', path);
+    }
+  }, [currentTab]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname.replace(/^\//, '');
+      const validTabs = [
+        'landing', 'login', 'about', 'dashboard', 'prediction', 'eai', 
+        'batch', 'analytics', 'dataset', 'compare', 'metrics', 'reports', 
+        'contact', 'admin', 'settings'
+      ];
+      if (validTabs.includes(path)) {
+        setCurrentTab(path);
+      } else {
+        setCurrentTab('landing');
+      }
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   // Theme Syncing
@@ -177,20 +226,33 @@ const AppContent: React.FC = () => {
       return <Login onAuthSuccess={handleAuthSuccess} onBack={() => setCurrentTab('landing')} />;
     }
     
+    // Layout structure for page wrapper
+    const layout = (content: React.ReactNode) => (
+      <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+        <Sidebar 
+          currentTab={currentTab} 
+          setCurrentTab={setCurrentTab} 
+          user={user} 
+          onLogout={handleLogout}
+          theme={theme}
+          toggleTheme={toggleTheme}
+        />
+        
+        <div className="flex-grow overflow-y-auto h-screen scrollbar-thin">
+          {content}
+        </div>
+      </div>
+    );
+
+    // Unprotected page tab layouts
+    if (currentTab === 'about') return layout(<AboutProject />);
+    if (currentTab === 'contact') return layout(<ContactFeedback />);
+    
     // Protected pages layout template
     return (
       <ProtectedRoute user={user} setCurrentTab={setCurrentTab} showToast={showToast}>
-        <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
-          <Sidebar 
-            currentTab={currentTab} 
-            setCurrentTab={setCurrentTab} 
-            user={user} 
-            onLogout={handleLogout}
-            theme={theme}
-            toggleTheme={toggleTheme}
-          />
-          
-          <div className="flex-grow overflow-y-auto h-screen scrollbar-thin">
+        {layout(
+          <>
             {currentTab === 'dashboard' && (
               <Dashboard 
                 onNavigateToEAI={handleNavigateToEAI} 
@@ -201,6 +263,9 @@ const AppContent: React.FC = () => {
             {currentTab === 'eai' && <ExplainableAI activePrediction={activeXaiData} />}
             {currentTab === 'batch' && <BatchPrediction />}
             {currentTab === 'analytics' && <AnalyticsLab />}
+            {currentTab === 'dataset' && <DatasetExplorer />}
+            {currentTab === 'compare' && <ComparePassengers />}
+            {currentTab === 'metrics' && <ModelMetrics />}
             {currentTab === 'reports' && <Reports />}
             {currentTab === 'admin' && <AdminPanel />}
             {currentTab === 'settings' && (
@@ -211,8 +276,8 @@ const AppContent: React.FC = () => {
                 toggleTheme={toggleTheme} 
               />
             )}
-          </div>
-        </div>
+          </>
+        )}
       </ProtectedRoute>
     );
   };

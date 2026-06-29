@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { BarChart4, Filter, Search, Grid, TrendingUp, HelpCircle } from 'lucide-react';
+import React, { useEffect, useState, useMemo } from 'react';
+import { BarChart4, Filter, Search, Grid, TrendingUp, HelpCircle, ArrowUpDown, RefreshCw } from 'lucide-react';
 import { 
   ResponsiveContainer, 
   BarChart, 
@@ -13,11 +13,13 @@ import {
 import { GlassCard } from '../components/GlassCard';
 import { useToast } from '../components/NotificationToast';
 import { analyticsApi, predictionsApi } from '../api';
+import { SkeletonLoader, ErrorState } from '../components/StateViews';
 
 export const AnalyticsLab: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [error, setError] = useState(false);
   const { showToast } = useToast();
 
   // Filters state
@@ -26,36 +28,54 @@ export const AnalyticsLab: React.FC = () => {
   const [filterPclass, setFilterPclass] = useState('all');
   const [filterEmbarked, setFilterEmbarked] = useState('all');
 
+  // Sort state
+  const [sortField, setSortField] = useState<'name' | 'pclass' | 'sex' | 'age' | 'fare'>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const fetchData = async () => {
+    try {
+      setError(false);
+      const [analyticsRes, historyRes] = await Promise.all([
+        analyticsApi.getAnalytics(),
+        predictionsApi.getHistory()
+      ]);
+      setData(analyticsRes);
+      setHistory(historyRes);
+    } catch (err) {
+      showToast('Error loading Analytics Lab datasets.', 'error');
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [analyticsRes, historyRes] = await Promise.all([
-          analyticsApi.getAnalytics(),
-          predictionsApi.getHistory()
-        ]);
-        setData(analyticsRes);
-        setHistory(historyRes);
-      } catch (err) {
-        showToast('Error loading Analytics Lab datasets.', 'error');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
   }, [showToast]);
 
-  if (loading || !data) {
-    return (
-      <div className="flex items-center justify-center h-[calc(100vh-80px)]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm font-semibold text-slate-400">Syncing Analytics Lab...</span>
-        </div>
-      </div>
-    );
-  }
+  const handleRetry = () => {
+    setLoading(true);
+    setError(false);
+    fetchData();
+  };
 
-  const { embarked_analysis, correlation } = data;
+  const handleResetFilters = () => {
+    setSearchName('');
+    setFilterSex('all');
+    setFilterPclass('all');
+    setFilterEmbarked('all');
+    setSortField('name');
+    setSortDirection('asc');
+  };
+
+  const handleSort = (field: 'name' | 'pclass' | 'sex' | 'age' | 'fare') => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
 
   // Filter local history predictions list
   const filteredHistory = history.filter(item => {
@@ -66,6 +86,55 @@ export const AnalyticsLab: React.FC = () => {
     return matchesName && matchesSex && matchesClass && matchesEmbarked;
   });
 
+  const sortedFilteredHistory = useMemo(() => {
+    const result = [...filteredHistory];
+    result.sort((a, b) => {
+      let aVal = a[sortField];
+      let bVal = b[sortField];
+
+      if (aVal === null || aVal === undefined) return sortDirection === 'asc' ? 1 : -1;
+      if (bVal === null || bVal === undefined) return sortDirection === 'asc' ? -1 : 1;
+
+      if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+      }
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return result;
+  }, [filteredHistory, sortField, sortDirection]);
+
+  if (loading) {
+    return (
+      <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto">
+        <div className="h-6 w-1/4 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse mb-6" />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-6">
+          <div className="lg:col-span-7 p-6 bg-white/40 dark:bg-slate-900/10 rounded-2xl border dark:border-white/5 border-slate-200 h-80">
+            <SkeletonLoader rows={4} />
+          </div>
+          <div className="lg:col-span-5 p-6 bg-white/40 dark:bg-slate-900/10 rounded-2xl border dark:border-white/5 border-slate-200 h-80">
+            <SkeletonLoader rows={4} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-80px)] bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+        <ErrorState 
+          message="Failed to load Analytics Lab data from the REST backend." 
+          onRetry={handleRetry}
+        />
+      </div>
+    );
+  }
+
+  const { embarked_analysis, correlation } = data;
+
   // Unique features array for our correlation heatmap
   const featuresList = ['Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Survived'];
   
@@ -73,7 +142,7 @@ export const AnalyticsLab: React.FC = () => {
   const getCorrelationValue = (f1: string, f2: string) => {
     if (f1 === f2) return 1.0;
     const match = correlation.find(
-      (c: any) => 
+      (c: any) =>
         (c.feature1.toLowerCase() === f1.toLowerCase() && c.feature2.toLowerCase() === f2.toLowerCase()) ||
         (c.feature1.toLowerCase() === f2.toLowerCase() && c.feature2.toLowerCase() === f1.toLowerCase())
     );
@@ -91,7 +160,7 @@ export const AnalyticsLab: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 p-6 max-w-7xl mx-auto animate-fade-in">
+    <div className="space-y-8 p-6 max-w-7xl mx-auto animate-fade-in bg-slate-50 dark:bg-slate-950 min-h-screen transition-colors duration-300">
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
           Analytics Lab
@@ -107,7 +176,7 @@ export const AnalyticsLab: React.FC = () => {
           <Filter className="w-4 h-4 text-indigo-500" /> Filter Datasets & Queries
         </h3>
         
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
           <div className="relative">
             <Search className="absolute left-3 top-3.5 w-4 h-4 text-slate-500" />
             <input 
@@ -156,6 +225,13 @@ export const AnalyticsLab: React.FC = () => {
               <option value="S">Southampton</option>
             </select>
           </div>
+
+          <button
+            onClick={handleResetFilters}
+            className="w-full py-2.5 rounded-xl border border-slate-200 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/5 text-slate-500 dark:text-slate-400 text-xs font-bold transition-all duration-300 flex items-center justify-center gap-2"
+          >
+            <RefreshCw className="w-3.5 h-3.5" /> Reset Filters
+          </button>
         </div>
       </GlassCard>
 
@@ -164,54 +240,45 @@ export const AnalyticsLab: React.FC = () => {
         {/* Heatmap matrix representation */}
         <div className="lg:col-span-7">
           <GlassCard className="p-6 border-white/5">
-            <h3 className="text-md font-bold text-slate-800 dark:text-white border-b dark:border-white/5 border-slate-200 pb-3 mb-6 flex items-center gap-2">
-              <Grid className="w-5 h-5 text-indigo-500" /> Factor Correlation Heatmap
+            <h3 className="text-md font-bold text-slate-800 dark:text-white mb-1.5 flex items-center gap-2">
+              <Grid className="w-5 h-5 text-indigo-500" /> Feature Correlation Matrix
             </h3>
-
-            {/* Heatmap container */}
+            <p className="text-xs text-slate-400 leading-normal mb-6">
+              Pearson correlation coefficients between various passenger metrics and survival target.
+            </p>
+            
             <div className="overflow-x-auto">
-              <div className="min-w-[480px]">
-                {/* Header row */}
-                <div className="grid grid-cols-8 gap-1.5 mb-1.5 text-center text-[10px] font-bold uppercase tracking-wider text-slate-400 pr-1 pr-1.5">
-                  <div className="text-left font-bold pl-2 pt-2">Feature</div>
-                  {featuresList.map((f) => (
-                    <div key={f} className="p-2 truncate">{f}</div>
+              <div className="min-w-[450px]">
+                {/* Header Labels */}
+                <div className="grid grid-cols-8 gap-1.5 mb-1.5 text-center text-[10px] font-bold text-slate-400">
+                  <div className="text-left py-2 font-sans">Metrics</div>
+                  {featuresList.map(f => (
+                    <div key={f} className="py-2 truncate" title={f}>{f}</div>
                   ))}
                 </div>
-
-                {/* Heatmap grid cells */}
+                
+                {/* Grid Rows */}
                 <div className="space-y-1.5">
-                  {featuresList.map((f1) => (
-                    <div key={f1} className="grid grid-cols-8 gap-1.5 items-center text-center">
-                      <div className="text-left text-[11px] font-bold text-slate-600 dark:text-slate-400 truncate pl-2">{f1}</div>
-                      {featuresList.map((f2) => {
+                  {featuresList.map(f1 => (
+                    <div key={f1} className="grid grid-cols-8 gap-1.5 text-center">
+                      <div className="text-left font-bold text-[10px] text-slate-400 flex items-center truncate py-1.5" title={f1}>
+                        {f1}
+                      </div>
+                      {featuresList.map(f2 => {
                         const val = getCorrelationValue(f1, f2);
                         return (
                           <div 
                             key={f2} 
-                            className={`p-3 text-xs rounded-xl font-mono transition-all duration-200 hover:scale-105 select-none ${getHeatmapColor(val)}`}
-                            title={`Correlation: ${f1} vs ${f2} = ${val}`}
+                            className={`p-2.5 rounded-lg text-xs transition-all duration-200 cursor-help ${getHeatmapColor(val)}`}
+                            title={`Correlation between ${f1} and ${f2}: ${val.toFixed(3)}`}
                           >
-                            {val === 1.0 ? '1.00' : val.toFixed(2)}
+                            {val.toFixed(2)}
                           </div>
                         );
                       })}
                     </div>
                   ))}
                 </div>
-              </div>
-            </div>
-
-            {/* Heatmap Legend */}
-            <div className="flex justify-between items-center mt-6 text-[10px] text-slate-500 font-semibold px-2 border-t dark:border-white/5 border-slate-200 pt-4">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded bg-rose-500" /> Strong Negative (-1.00)
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded bg-slate-200 dark:bg-slate-900" /> Neutral (0.00)
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded bg-indigo-600" /> Strong Positive (+1.00)
               </div>
             </div>
           </GlassCard>
@@ -248,17 +315,27 @@ export const AnalyticsLab: React.FC = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b dark:border-white/5 border-slate-200/80 text-xs uppercase font-bold text-slate-400 tracking-wider">
-                <th className="py-3 px-4">Passenger Name</th>
-                <th className="py-3 px-4">Class</th>
-                <th className="py-3 px-4">Gender</th>
-                <th className="py-3 px-4">Age</th>
-                <th className="py-3 px-4">Fare</th>
+              <tr className="border-b dark:border-white/5 border-slate-200/80 text-xs uppercase font-bold text-slate-400 tracking-wider select-none">
+                <th onClick={() => handleSort('name')} className="py-3 px-4 cursor-pointer hover:text-indigo-500">
+                  Passenger Name <ArrowUpDown className="inline w-3 h-3 ml-1" />
+                </th>
+                <th onClick={() => handleSort('pclass')} className="py-3 px-4 cursor-pointer hover:text-indigo-500">
+                  Class <ArrowUpDown className="inline w-3 h-3 ml-1" />
+                </th>
+                <th onClick={() => handleSort('sex')} className="py-3 px-4 cursor-pointer hover:text-indigo-500">
+                  Gender <ArrowUpDown className="inline w-3 h-3 ml-1" />
+                </th>
+                <th onClick={() => handleSort('age')} className="py-3 px-4 cursor-pointer hover:text-indigo-500">
+                  Age <ArrowUpDown className="inline w-3 h-3 ml-1" />
+                </th>
+                <th onClick={() => handleSort('fare')} className="py-3 px-4 cursor-pointer hover:text-indigo-500">
+                  Fare <ArrowUpDown className="inline w-3 h-3 ml-1" />
+                </th>
                 <th className="py-3 px-4 text-right">Result</th>
               </tr>
             </thead>
             <tbody className="divide-y dark:divide-white/5 divide-slate-200/50">
-              {filteredHistory.map((item) => (
+              {sortedFilteredHistory.map((item) => (
                 <tr key={item.id} className="text-sm hover:bg-slate-100/30 dark:hover:bg-white/5 transition-colors">
                   <td className="py-3.5 px-4 font-semibold text-slate-800 dark:text-slate-200">{item.name}</td>
                   <td className="py-3.5 px-4 text-slate-500">Class {item.pclass}</td>
@@ -274,7 +351,7 @@ export const AnalyticsLab: React.FC = () => {
                   </td>
                 </tr>
               ))}
-              {filteredHistory.length === 0 && (
+              {sortedFilteredHistory.length === 0 && (
                 <tr>
                   <td colSpan={6} className="text-center py-12 text-slate-400 text-sm">
                     No predictions match the active query parameters.
